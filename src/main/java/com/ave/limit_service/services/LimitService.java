@@ -1,32 +1,24 @@
 package com.ave.limit_service.services;
 
-import com.ave.limit_service.configuration.ApplicationConfiguration;
 import com.ave.limit_service.dto.LimitReservationDto;
 import com.ave.limit_service.dto.ReservationDto;
 import com.ave.limit_service.dto.WithdrawDto;
 import com.ave.limit_service.dto.UserDto;
-import com.ave.limit_service.enums.LimitReservationStatus;
-import com.ave.limit_service.exception.LimitExceededException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
 
 @Service
 public class LimitService {
 
     final private UserLimitService userLimitService;
     final private LimitReservationsService limitReservationsService;
-    final private ApplicationConfiguration applicationConfiguration;
 
     public LimitService(
             UserLimitService userLimitService,
-            LimitReservationsService limitReservationsService,
-            ApplicationConfiguration applicationConfiguration
+            LimitReservationsService limitReservationsService
     ) {
         this.userLimitService = userLimitService;
         this.limitReservationsService = limitReservationsService;
-        this.applicationConfiguration = applicationConfiguration;
     }
 
     public UserDto findUser(String userId) {
@@ -39,24 +31,19 @@ public class LimitService {
 
     @Transactional
     public LimitReservationDto reservation(ReservationDto request) {
-        UserDto userDto = findUser(request.userId());
-        double totalReservation = userDto.reservedAmount() + request.amount();
+        userLimitService.reservation(request);
+        return limitReservationsService.reservation(request);
+    }
 
-        if (totalReservation > userDto.currentLimit()) {
-            throw new LimitExceededException();
-        }
-        userLimitService.save(new UserDto(userDto.userId(), userDto.currentLimit(), totalReservation));
+    @Transactional
+    public void confirmReservation(Long reservationId) {
+        LimitReservationDto limitReservationDto = limitReservationsService.confirmAndGetReservation(reservationId);
+        userLimitService.confirmReservation(limitReservationDto);
+    }
 
-        LimitReservationDto limitReservationDto = new LimitReservationDto();
-        LocalDateTime expiresAt = LocalDateTime
-                .now()
-                .plusMinutes(applicationConfiguration.getReservationTimeoutMinutes());
-
-        limitReservationDto.setUserId(request.userId());
-        limitReservationDto.setExpiresAt(expiresAt);
-        limitReservationDto.setAmount(request.amount());
-        limitReservationDto.setStatus(LimitReservationStatus.RESERVED);
-
-        return limitReservationsService.create(limitReservationDto);
+    @Transactional
+    public void cancelReservation(Long reservationId) {
+        LimitReservationDto limitReservationDto = limitReservationsService.cancelAndGetReservation(reservationId);
+        userLimitService.cancelReservation(limitReservationDto);
     }
 }

@@ -1,6 +1,8 @@
 package com.ave.limit_service.services;
 
 import com.ave.limit_service.configuration.ApplicationConfiguration;
+import com.ave.limit_service.dto.LimitReservationDto;
+import com.ave.limit_service.dto.ReservationDto;
 import com.ave.limit_service.dto.WithdrawDto;
 import com.ave.limit_service.entities.UserLimitsEntity;
 import com.ave.limit_service.exception.LimitExceededException;
@@ -23,11 +25,8 @@ public class UserLimitService {
     public UserDto findUser(String userId) {
         return userRepository
                 .findById(userId)
-                .map(user -> new UserDto(
-                        user.getUserId(),
-                        user.getCurrentLimit(),
-                        user.getReservedAmount()
-                )).orElseGet(() -> createUser(userId));
+                .map(UserLimitService::getUserDto)
+                .orElseGet(() -> createUser(userId));
     }
 
     public UserDto createUser(String userID) {
@@ -38,25 +37,21 @@ public class UserLimitService {
 
         userRepository.save(userLimitsEntity);
 
-        return new UserDto(
-                userLimitsEntity.getUserId(),
-                userLimitsEntity.getCurrentLimit(),
-                userLimitsEntity.getReservedAmount()
-        );
+        return getUserDto(userLimitsEntity);
     }
 
     public void withdraw(WithdrawDto withdrawDto) {
         UserDto userDto = findUser(withdrawDto.userId());
 
-        if (withdrawDto.amount() > (userDto.currentLimit() - userDto.reservedAmount())) {
-            throw new LimitExceededException();
+        if (withdrawDto.amount() > (userDto.getCurrentLimit() - userDto.getReservedAmount())) {
+            throw new LimitExceededException("Limit exceeded");
         }
 
         UserLimitsEntity userLimitsEntity = new UserLimitsEntity();
 
         userLimitsEntity.setUserId(withdrawDto.userId());
-        userLimitsEntity.setCurrentLimit(userDto.currentLimit() - withdrawDto.amount());
-        userLimitsEntity.setReservedAmount(userDto.reservedAmount());
+        userLimitsEntity.setCurrentLimit(userDto.getCurrentLimit() - withdrawDto.amount());
+        userLimitsEntity.setReservedAmount(userDto.getReservedAmount());
 
         userRepository.save(userLimitsEntity);
     }
@@ -64,10 +59,60 @@ public class UserLimitService {
     public void save(UserDto userDto) {
         UserLimitsEntity userLimitsEntity = new UserLimitsEntity();
 
-        userLimitsEntity.setUserId(userDto.userId());
-        userLimitsEntity.setCurrentLimit(userDto.currentLimit());
-        userLimitsEntity.setReservedAmount(userDto.reservedAmount());
+        userLimitsEntity.setUserId(userDto.getUserId());
+        userLimitsEntity.setCurrentLimit(userDto.getCurrentLimit());
+        userLimitsEntity.setReservedAmount(userDto.getReservedAmount());
 
         userRepository.save(userLimitsEntity);
+    }
+
+    public void confirmReservation(LimitReservationDto limitReservationDto) {
+        UserDto userDto = findUser(limitReservationDto.getUserId());
+
+        if (userDto.getCurrentLimit() < limitReservationDto.getAmount()) {
+            throw new LimitExceededException("Limit exceeded");
+        }
+
+        double currentLimit = userDto.getCurrentLimit() - limitReservationDto.getAmount();
+        double reservedAmount = userDto.getReservedAmount() < limitReservationDto.getAmount()
+                ? 0 : userDto.getReservedAmount() - limitReservationDto.getAmount();
+
+        userDto.setCurrentLimit(currentLimit);
+        userDto.setReservedAmount(reservedAmount);
+
+        save(userDto);
+    }
+
+    public void cancelReservation(LimitReservationDto limitReservationDto) {
+        UserDto userDto = findUser(limitReservationDto.getUserId());
+        double reservedAmount = userDto.getReservedAmount() < limitReservationDto.getAmount()
+                ? 0 : userDto.getReservedAmount() - limitReservationDto.getAmount();
+
+        userDto.setReservedAmount(reservedAmount);
+
+        save(userDto);
+    }
+
+    public void reservation(ReservationDto reservationDto) {
+        UserDto userDto = findUser(reservationDto.userId());
+        double totalReservation = userDto.getReservedAmount() + reservationDto.amount();
+
+        if (totalReservation > userDto.getCurrentLimit()) {
+            throw new LimitExceededException("Limit exceeded");
+        }
+
+        userDto.setReservedAmount(totalReservation);
+
+        save(userDto);
+    }
+
+    private static UserDto getUserDto(UserLimitsEntity userLimitsEntity) {
+        UserDto userDto = new UserDto();
+
+        userDto.setUserId(userLimitsEntity.getUserId());
+        userDto.setReservedAmount(userLimitsEntity.getReservedAmount());
+        userDto.setCurrentLimit(userLimitsEntity.getCurrentLimit());
+
+        return userDto;
     }
 }

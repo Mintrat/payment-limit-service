@@ -1,6 +1,7 @@
 package com.ave.limit_service.controllers.handlers;
 
 import com.ave.limit_service.dto.ErrorDto;
+import com.ave.limit_service.exception.LimitErrorStatusException;
 import com.ave.limit_service.exception.LimitExceededException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,12 @@ public class LimitExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ExceptionHandler(LimitExceededException.class)
     public ErrorDto limitExceeded(LimitExceededException exceeded) {
-        return new ErrorDto("Limit exceeded");
+        return new ErrorDto(exceeded.getMessage());
+    }
+
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(LimitErrorStatusException.class)
+    public ErrorDto errorStatusLimit(LimitErrorStatusException limitErrorStatusException) {
+        return new ErrorDto(limitErrorStatusException.getMessage());
     }
 }

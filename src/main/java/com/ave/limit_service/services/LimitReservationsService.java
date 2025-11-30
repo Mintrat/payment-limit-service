@@ -1,21 +1,34 @@
 package com.ave.limit_service.services;
 
+import com.ave.limit_service.configuration.ApplicationConfiguration;
 import com.ave.limit_service.dto.LimitReservationDto;
+import com.ave.limit_service.dto.ReservationDto;
 import com.ave.limit_service.entities.LimitReservationEntity;
+import com.ave.limit_service.enums.LimitReservationStatus;
+import com.ave.limit_service.exception.LimitErrorStatusException;
 import com.ave.limit_service.repositories.LimitReservationsRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
+@Slf4j
 @Service
 public class LimitReservationsService {
 
     private final LimitReservationsRepository limitReservationsRepository;
+    final private ApplicationConfiguration applicationConfiguration;
 
-    public LimitReservationsService(LimitReservationsRepository limitReservationsRepository) {
+    public LimitReservationsService(
+            LimitReservationsRepository limitReservationsRepository,
+            ApplicationConfiguration applicationConfiguration
+    ) {
         this.limitReservationsRepository = limitReservationsRepository;
+        this.applicationConfiguration = applicationConfiguration;
     }
 
-    public LimitReservationDto find(int id) {
+    public LimitReservationDto find(Long id) {
         return this.limitReservationsRepository
                 .findById(id)
                 .map(limitReservationEntity -> {
@@ -32,13 +45,8 @@ public class LimitReservationsService {
                 .orElseThrow(EntityNotFoundException::new);
     }
 
-    public LimitReservationDto create(LimitReservationDto limitReservationDto) {
-        LimitReservationEntity limitReservationEntity = new LimitReservationEntity();
-
-        limitReservationEntity.setUserId(limitReservationDto.getUserId());
-        limitReservationEntity.setStatus(limitReservationDto.getStatus());
-        limitReservationEntity.setAmount(limitReservationDto.getAmount());
-        limitReservationEntity.setExpiresAt(limitReservationDto.getExpiresAt());
+    public LimitReservationDto save(LimitReservationDto limitReservationDto) {
+        LimitReservationEntity limitReservationEntity = getLimitReservationEntity(limitReservationDto);
 
         limitReservationsRepository.save(limitReservationEntity);
 
@@ -51,5 +59,58 @@ public class LimitReservationsService {
         result.setExpiresAt(limitReservationEntity.getExpiresAt());
 
         return result;
+    }
+
+    public LimitReservationDto confirmAndGetReservation(Long reservationId) {
+        LimitReservationDto limitReservationDto = this.find(reservationId);
+
+        if (!LimitReservationStatus.RESERVED.equals(limitReservationDto.getStatus())) {
+            throw new LimitErrorStatusException("The limit has expired or been cancelled or has already been confirmed");
+        }
+
+        limitReservationDto.setStatus(LimitReservationStatus.CONFIRMED);
+
+        return save(limitReservationDto);
+    }
+
+    public LimitReservationDto cancelAndGetReservation(Long reservationId) {
+        LimitReservationDto limitReservationDto = this.find(reservationId);
+
+        if (!LimitReservationStatus.RESERVED.equals(limitReservationDto.getStatus())) {
+            throw new LimitErrorStatusException("The limit has expired or been cancelled or has already been confirmed");
+        }
+
+        limitReservationDto.setStatus(LimitReservationStatus.CANCELED);
+
+        return save(limitReservationDto);
+    }
+
+    public LimitReservationDto reservation(ReservationDto request) {
+        LimitReservationDto limitReservationDto = new LimitReservationDto();
+        LocalDateTime expiresAt = LocalDateTime
+                .now()
+                .plusMinutes(applicationConfiguration.getReservationTimeoutMinutes());
+
+        limitReservationDto.setUserId(request.userId());
+        limitReservationDto.setExpiresAt(expiresAt);
+        limitReservationDto.setAmount(request.amount());
+        limitReservationDto.setStatus(LimitReservationStatus.RESERVED);
+
+        return save(limitReservationDto);
+    }
+
+    private static LimitReservationEntity getLimitReservationEntity(LimitReservationDto limitReservationDto) {
+        LimitReservationEntity limitReservationEntity = new LimitReservationEntity();
+
+        if (limitReservationDto.getId() != 0L) {
+            limitReservationEntity.setId(limitReservationDto.getId());
+        }
+
+        limitReservationEntity.setUserId(limitReservationDto.getUserId());
+        limitReservationEntity.setStatus(limitReservationDto.getStatus());
+        limitReservationEntity.setAmount(limitReservationDto.getAmount());
+        limitReservationEntity.setExpiresAt(limitReservationDto.getExpiresAt());
+
+        return limitReservationEntity;
     }
 }

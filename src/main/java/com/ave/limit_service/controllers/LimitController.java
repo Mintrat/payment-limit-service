@@ -15,7 +15,7 @@ public class LimitController {
         this.limitService = limitService;
     }
 
-    @GetMapping("/limits/{userId}")
+    @GetMapping("/users/{userId}")
     public UserDto findUserById(@PathVariable String userId) {
         return limitService.findUser(userId);
     }
@@ -28,5 +28,15 @@ public class LimitController {
     @PostMapping("/reservation")
     public LimitReservationDto reservation(@RequestBody ReservationDto request) {
         return limitService.reservation(request);
+    }
+
+    @PostMapping("/reservation/confirm/{reservationId}")
+    public void confirmReservation(@PathVariable Long reservationId) {
+        limitService.confirmReservation(reservationId);
+    }
+
+    @PostMapping("/reservation/cancel/{reservationId}")
+    public void cancelReservation(@PathVariable Long reservationId) {
+        limitService.cancelReservation(reservationId);
     }
 }

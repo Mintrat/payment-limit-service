@@ -1,4 +1,12 @@
 package com.ave.limit_service.dto;
 
-public record UserDto(String userId, double currentLimit, double reservedAmount) {
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class UserDto {
+    private String userId;
+    private double currentLimit;
+    private double reservedAmount;
 }

@@ -4,8 +4,11 @@ import com.ave.limit_service.dto.LimitReservationDto;
 import com.ave.limit_service.dto.ReservationDto;
 import com.ave.limit_service.dto.WithdrawDto;
 import com.ave.limit_service.dto.UserDto;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 public class LimitService {
@@ -45,5 +48,18 @@ public class LimitService {
     public void cancelReservation(Long reservationId) {
         LimitReservationDto limitReservationDto = limitReservationsService.cancelAndGetReservation(reservationId);
         userLimitService.cancelReservation(limitReservationDto);
+    }
+
+    @Scheduled(fixedRate = 300000)
+    @Transactional
+    public void toExpire() {
+        List<LimitReservationDto> limitReservations = limitReservationsService.toExpire();
+        userLimitService.rollBackReservations(limitReservations);
+    }
+
+    @Scheduled(cron = "0 0 0 * * ?")
+    @Transactional
+    public void restoreLimits() {
+        userLimitService.restoreLimits();
     }
 }

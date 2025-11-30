@@ -8,8 +8,14 @@ import com.ave.limit_service.entities.UserLimitsEntity;
 import com.ave.limit_service.exception.LimitExceededException;
 import com.ave.limit_service.repositories.UserRepository;
 import com.ave.limit_service.dto.UserDto;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Slf4j
 @Service
 public class UserLimitService {
 
@@ -104,6 +110,30 @@ public class UserLimitService {
         userDto.setReservedAmount(totalReservation);
 
         save(userDto);
+    }
+
+    public void rollBackReservations(List<LimitReservationDto> reservations) {
+        Map<String, Double> userAmounts = reservations.stream().collect(Collectors.groupingBy(
+                LimitReservationDto::getUserId,
+                Collectors.summingDouble(LimitReservationDto::getAmount)
+        ));
+
+        List<UserLimitsEntity> userLimits = userRepository
+                .findByUserIdIn(userAmounts.keySet().stream().toList())
+                .stream()
+                .peek(entity -> {
+                    Double amount = userAmounts.get(entity.getUserId());
+                    Double currentAmount = entity.getReservedAmount();
+                    double newAmount = currentAmount > amount ? currentAmount - amount : 0;
+
+                    entity.setReservedAmount(newAmount);
+                }).toList();
+
+        userRepository.saveAll(userLimits);
+    }
+
+    public void restoreLimits() {
+        userRepository.updateAllCurrentLimits(applicationConfiguration.getDefaultLimit());
     }
 
     private static UserDto getUserDto(UserLimitsEntity userLimitsEntity) {

@@ -26,6 +26,7 @@ public class LimitReservationEntity {
     @Column(name = "amount", nullable = false)
     private double amount;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private LimitReservationStatus status;
 }

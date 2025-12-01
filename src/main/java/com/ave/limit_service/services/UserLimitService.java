@@ -6,6 +6,7 @@ import com.ave.limit_service.dto.ReservationDto;
 import com.ave.limit_service.dto.WithdrawDto;
 import com.ave.limit_service.entities.UserLimitsEntity;
 import com.ave.limit_service.exception.LimitExceededException;
+import com.ave.limit_service.mappers.UserLimitMapper;
 import com.ave.limit_service.repositories.UserRepository;
 import com.ave.limit_service.dto.UserDto;
 import lombok.extern.slf4j.Slf4j;
@@ -23,15 +24,22 @@ public class UserLimitService {
 
     private final ApplicationConfiguration applicationConfiguration;
 
-    public UserLimitService(UserRepository userRepository, ApplicationConfiguration applicationConfiguration) {
+    private final UserLimitMapper userLimitMapper;
+
+    public UserLimitService(
+            UserRepository userRepository,
+            ApplicationConfiguration applicationConfiguration,
+            UserLimitMapper userLimitMapper
+    ) {
         this.userRepository = userRepository;
         this.applicationConfiguration = applicationConfiguration;
+        this.userLimitMapper = userLimitMapper;
     }
 
     public UserDto findUser(String userId) {
         return userRepository
                 .findById(userId)
-                .map(UserLimitService::getUserDto)
+                .map(userLimitMapper::mapUserLimitsEntityToUserDto)
                 .orElseGet(() -> createUser(userId));
     }
 
@@ -43,7 +51,7 @@ public class UserLimitService {
 
         userRepository.save(userLimitsEntity);
 
-        return getUserDto(userLimitsEntity);
+        return userLimitMapper.mapUserLimitsEntityToUserDto(userLimitsEntity);
     }
 
     public void withdraw(WithdrawDto withdrawDto) {
@@ -121,12 +129,13 @@ public class UserLimitService {
         List<UserLimitsEntity> userLimits = userRepository
                 .findByUserIdIn(userAmounts.keySet().stream().toList())
                 .stream()
-                .peek(entity -> {
+                .map(entity -> {
                     Double amount = userAmounts.get(entity.getUserId());
                     Double currentAmount = entity.getReservedAmount();
                     double newAmount = currentAmount > amount ? currentAmount - amount : 0;
 
                     entity.setReservedAmount(newAmount);
+                    return entity;
                 }).toList();
 
         userRepository.saveAll(userLimits);
@@ -134,15 +143,5 @@ public class UserLimitService {
 
     public void restoreLimits() {
         userRepository.updateAllCurrentLimits(applicationConfiguration.getDefaultLimit());
-    }
-
-    private static UserDto getUserDto(UserLimitsEntity userLimitsEntity) {
-        UserDto userDto = new UserDto();
-
-        userDto.setUserId(userLimitsEntity.getUserId());
-        userDto.setReservedAmount(userLimitsEntity.getReservedAmount());
-        userDto.setCurrentLimit(userLimitsEntity.getCurrentLimit());
-
-        return userDto;
     }
 }

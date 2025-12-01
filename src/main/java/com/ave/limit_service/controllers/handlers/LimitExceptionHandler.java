@@ -14,19 +14,13 @@ public class LimitExceptionHandler {
 
     @ResponseStatus(HttpStatus.NOT_FOUND)
     @ExceptionHandler(EntityNotFoundException.class)
-    public ErrorDto notFoundEntity(EntityNotFoundException exceeded) {
-        return new ErrorDto("Not found");
+    public ErrorDto notFoundEntity(EntityNotFoundException exception) {
+        return new ErrorDto(exception.getMessage());
     }
 
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    @ExceptionHandler(LimitExceededException.class)
-    public ErrorDto limitExceeded(LimitExceededException exceeded) {
-        return new ErrorDto(exceeded.getMessage());
-    }
-
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    @ExceptionHandler(LimitErrorStatusException.class)
-    public ErrorDto errorStatusLimit(LimitErrorStatusException limitErrorStatusException) {
-        return new ErrorDto(limitErrorStatusException.getMessage());
+    @ExceptionHandler({LimitExceededException.class, LimitErrorStatusException.class})
+    public ErrorDto limitExceeded(RuntimeException exception) {
+        return new ErrorDto(exception.getMessage());
     }
 }

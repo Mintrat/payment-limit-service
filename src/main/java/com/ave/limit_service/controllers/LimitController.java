@@ -8,6 +8,7 @@ import com.ave.limit_service.services.LimitService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/api/v1")
 public class LimitController {
     private final LimitService limitService;
 
